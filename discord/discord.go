@@ -34,6 +34,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		s.ChannelMessageSend(m.ChannelID, "I wish Trev wasn't around anymore")
 	}
 	if strings.Contains(m.Content, "$rip") {
-		playAudio(s, m)
+		ripSound(m.Content)
 	}
 }
