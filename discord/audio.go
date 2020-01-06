@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strconv"
@@ -90,27 +92,10 @@ func ripAudio(dgv *discordgo.VoiceConnection, command string) {
 
 func convertFileToOpus(dgv *discordgo.VoiceConnection, buf *bytes.Buffer) {
 	run := exec.Command("ffmpeg", "-i", "tyler.mp4", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "pipe:1")
-
-	// stdin, err := run.StdinPipe()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	fmt.Println("convertFileToOpus 2")
-
-	// go func() {
-	// 	defer stdin.Close()
-	// 	stdin.Write(buf.Bytes())
-	// 	// stdin.Write(buf.Bytes())
-	// 	// fmt.Println("convertFileToOpus 2.5")
-	// 	// stdin.Close()
-	// 	// fmt.Println("convertFileToOpus 2.75")
-	// }()
-
 	ffmpegout, _ := run.StdoutPipe()
 
 	// CDF: Did the buffer here make it chunk?
 	ffmpegbuf := bufio.NewReader(ffmpegout)
-	fmt.Println("convertFileToOpus 3")
 
 	// Starts the ffmpeg command
 	_ = run.Start()
@@ -129,33 +114,56 @@ func convertFileToOpus(dgv *discordgo.VoiceConnection, buf *bytes.Buffer) {
 		}
 	}()
 
-	// var opusEncoder *gopus.Encoder
 	opusEncoder, _ := gopus.NewEncoder(frameRate, channels, gopus.Audio)
-
-	// pcmBuffer := new(bytes.Buffer)
-
-	pcmFile, _ := os.Create("tylerpcmtest")
-	defer pcmFile.Close()
-
+	byteArrayArray := make([][]byte, 10)
 	for {
 		fmt.Println("Looped")
 		// read data from ffmpeg stdout
 		audiobuf := make([]int16, frameSize*channels) //CDF: This represents a single frame. 20ms * 48 samples/ms * 2 channels
 		err := binary.Read(ffmpegbuf, binary.LittleEndian, &audiobuf)
 		opus, _ := opusEncoder.Encode(audiobuf, frameSize, maxBytes)
-		pcmFile.Write(opus)
-		dgv.OpusSend <- opus
+		byteArrayArray = append(byteArrayArray, opus)
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			fmt.Println("End reached")
-			// fmt.Println(err)
-			// pcmFile, err := os.Create("pcmFileTest")
+
+			type P struct {
+				ByteArray [][]byte
+			}
+
+			var network bytes.Buffer
+			// enc := gob.NewEncoder(&network)
+			dec := gob.NewDecoder(&network)
+
+			// err := enc.Encode(P{ByteArray: byteArrayArray})
 			// if err != nil {
-			// 	log.Fatal(err)
+			// 	log.Fatal("encode error:", err)
 			// }
-			// defer pcmFile.Close()
-			// pcmFile.Write(pcmBuffer.Bytes())
+
+			// // Write to file
+			// middleMan, _ := os.Create("middleman")
+			// middleMan.Write(network.Bytes())
+			// middleMan.Close()
+
+			// OPen file and read
+			newMiddleMan, _ := os.Open("middleman")
+			fileinfo, err := newMiddleMan.Stat()
+			filesize := fileinfo.Size()
+			buffer := make([]byte, filesize)
+			_, err = newMiddleMan.Read(buffer)
+			network.Write(buffer)
+
+			// Decode (receive) the value.
+			var newP P
+			err = dec.Decode(&newP)
+			if err != nil {
+				log.Fatal("decode error:", err)
+			}
+
+			fmt.Println("End reached")
+			for _, byteArray := range newP.ByteArray {
+				fmt.Println("ByteSlice length: ", len(byteArray))
+				dgv.OpusSend <- byteArray
+			}
 			return
 		}
-		// pcmBuffer.Write(opus)
 	}
 }
