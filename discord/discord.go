@@ -36,4 +36,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if strings.Contains(m.Content, "$rip") {
 		ripSound(m.Content)
 	}
+	if strings.Contains(m.Content, "$play") {
+		playSound(m.Content, s, m)
+	}
+
 }
