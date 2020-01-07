@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -83,4 +84,45 @@ func delayedDeleteMessage(s *discordgo.Session, messages ...*discordgo.Message) 
 	for _, message := range messages {
 		s.ChannelMessageDelete(message.ChannelID, message.ID)
 	}
+}
+
+func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.MessageCreate) {
+	vs, err := findUserVoiceState(s, m.Author.ID)
+
+	// NOTE: Setting mute to false, deaf to true.
+	dgv, err := s.ChannelVoiceJoin(m.GuildID, vs.ChannelID, false, true)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer dgv.Disconnect()
+
+	// Send "speaking" packet over the voice websocket
+	err = dgv.Speaking(true)
+	if err != nil {
+		fmt.Println("Couldn't set speaking", err)
+	}
+
+	// Send not "speaking" packet over the websocket when we finish
+	defer func() {
+		err := dgv.Speaking(false)
+		if err != nil {
+			fmt.Println("Couldn't stop speaking", err)
+		}
+	}()
+
+	for _, byteArray := range opusFrames {
+		dgv.OpusSend <- byteArray
+	}
+}
+
+func findUserVoiceState(session *discordgo.Session, userid string) (*discordgo.VoiceState, error) {
+	for _, guild := range session.State.Guilds {
+		for _, vs := range guild.VoiceStates {
+			if vs.UserID == userid {
+				return vs, nil
+			}
+		}
+	}
+	return nil, errors.New("Could not find user's voice state")
 }

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -58,20 +57,6 @@ func listSounds() []string {
 	}
 }
 
-func listSoundsLocal() []string {
-	files, err := ioutil.ReadDir("./sounds")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	sounds := make([]string, 0)
-	for _, f := range files {
-		sounds = append(sounds, f.Name())
-	}
-
-	return sounds
-}
-
 // Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s
 func ripSound(command string) {
 	// ToDo: Put command into struct
@@ -104,6 +89,7 @@ func parseAudioLength(start string, end string) (string, string) {
 	return strconv.Itoa(startSec), strconv.Itoa(endSec - startSec)
 }
 
+// TODO: A lot of this utility work should probably go into the tokenization functionality.
 func convertTimeToSec(timestamp string) int {
 	re := regexp.MustCompile(`(\d*)m(\d*)s`)
 	matches := re.FindSubmatch([]byte(timestamp))
@@ -112,7 +98,6 @@ func convertTimeToSec(timestamp string) int {
 	return minutes*60 + seconds
 }
 
-// ToDO: Fix duplication?
 func fetchVideoData(url string) *bytes.Buffer {
 	vid, err := ytdl.GetVideoInfo(url)
 	if err != nil {
@@ -146,7 +131,7 @@ func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) 
 	_ = run.Start()
 
 	opusEncoder, _ := gopus.NewEncoder(frameRate, channels, gopus.Audio)
-	opusFrames := make([][]byte, 10)
+	opusFrames := make([][]byte, 0)
 	for {
 		// CDF: This represents a single frame. 20ms * 48 samples/ms * 2 channels
 		frameBuf := make([]int16, frameSize*channels)
@@ -157,16 +142,6 @@ func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) 
 		opusFrame, _ := opusEncoder.Encode(frameBuf, frameSize, maxBytes)
 		opusFrames = append(opusFrames, opusFrame)
 	}
-}
-
-func gobEncodeOpusFrames(opusFrames [][]byte) bytes.Buffer {
-	var network bytes.Buffer
-	enc := gob.NewEncoder(&network)
-	err := enc.Encode(OpusAudio{ByteArray: opusFrames})
-	if err != nil {
-		log.Fatal("gobEncodeOpusFrames error:", err)
-	}
-	return network
 }
 
 func putSoundLocal(buf bytes.Buffer, fileName string) bool {
@@ -185,6 +160,30 @@ func putSoundLocal(buf bytes.Buffer, fileName string) bool {
 	}
 
 	return true
+}
+
+func listSoundsLocal() []string {
+	files, err := ioutil.ReadDir("./sounds")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sounds := make([]string, 0)
+	for _, f := range files {
+		sounds = append(sounds, f.Name())
+	}
+
+	return sounds
+}
+
+func gobEncodeOpusFrames(opusFrames [][]byte) bytes.Buffer {
+	var network bytes.Buffer
+	enc := gob.NewEncoder(&network)
+	err := enc.Encode(OpusAudio{ByteArray: opusFrames})
+	if err != nil {
+		log.Fatal("gobEncodeOpusFrames error:", err)
+	}
+	return network
 }
 
 func gobDecodeOpusFrames(filename string) [][]byte {
@@ -216,45 +215,4 @@ func gobDecodeOpusFrames(filename string) [][]byte {
 		log.Fatal("gobDecodeOpusFrames error:", err)
 	}
 	return opusStruct.ByteArray
-}
-
-func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.MessageCreate) {
-	vs, err := findUserVoiceState(s, m.Author.ID)
-
-	// NOTE: Setting mute to false, deaf to true.
-	dgv, err := s.ChannelVoiceJoin(m.GuildID, vs.ChannelID, false, true)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer dgv.Disconnect()
-
-	// Send "speaking" packet over the voice websocket
-	err = dgv.Speaking(true)
-	if err != nil {
-		fmt.Println("Couldn't set speaking", err)
-	}
-
-	// Send not "speaking" packet over the websocket when we finish
-	defer func() {
-		err := dgv.Speaking(false)
-		if err != nil {
-			fmt.Println("Couldn't stop speaking", err)
-		}
-	}()
-
-	for _, byteArray := range opusFrames {
-		dgv.OpusSend <- byteArray
-	}
-}
-
-func findUserVoiceState(session *discordgo.Session, userid string) (*discordgo.VoiceState, error) {
-	for _, guild := range session.State.Guilds {
-		for _, vs := range guild.VoiceStates {
-			if vs.UserID == userid {
-				return vs, nil
-			}
-		}
-	}
-	return nil, errors.New("Could not find user's voice state")
 }
