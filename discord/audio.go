@@ -7,6 +7,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -30,6 +31,9 @@ const (
 	maxBytes  int = (frameSize * 2) * 2 // max size of opus data
 )
 
+var s3Persistence string = os.Getenv("S3_PERSISTENCE")
+
+// OpusAudio is the barebones struct used to store an array of opus frames.
 type OpusAudio struct {
 	ByteArray [][]byte
 }
@@ -46,6 +50,28 @@ func playSound(command string, session *discordgo.Session, message *discordgo.Me
 	pipeOpusToDiscord(decodedFrames, session, message)
 }
 
+func listSounds() []string {
+	if s3Persistence == "true" {
+		return listSoundsS3()
+	} else {
+		return listSoundsLocal()
+	}
+}
+
+func listSoundsLocal() []string {
+	files, err := ioutil.ReadDir("./sounds")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sounds := make([]string, 0)
+	for _, f := range files {
+		sounds = append(sounds, f.Name())
+	}
+
+	return sounds
+}
+
 // Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s
 func ripSound(command string) {
 	// ToDo: Put command into struct
@@ -58,14 +84,20 @@ func ripSound(command string) {
 	videoBuf := fetchVideoData(tokens[2])
 	start, duration := parseAudioLength(tokens[3], tokens[4])
 	opusFrames := convertToOpusFrames(videoBuf, start, duration)
-
 	encodedFrames := gobEncodeOpusFrames(opusFrames)
-	success := writeToFile(encodedFrames, tokens[1])
+
+	var success bool
+	if s3Persistence == "true" {
+		success = putSoundS3(encodedFrames, tokens[1])
+	} else {
+		success = putSoundLocal(encodedFrames, tokens[1])
+	}
 	if !success {
 		fmt.Println("Error saving audio file.")
 	}
 }
 
+// TODO: A lot of this utility work should probably go into the tokenization functionality.
 func parseAudioLength(start string, end string) (string, string) {
 	startSec := convertTimeToSec(start)
 	endSec := convertTimeToSec(end)
@@ -137,7 +169,7 @@ func gobEncodeOpusFrames(opusFrames [][]byte) bytes.Buffer {
 	return network
 }
 
-func writeToFile(buf bytes.Buffer, fileName string) bool {
+func putSoundLocal(buf bytes.Buffer, fileName string) bool {
 	file, err := os.Create("sounds/" + fileName)
 	if err != nil {
 		fmt.Println("Error creating file: ", err)
@@ -162,20 +194,24 @@ func gobDecodeOpusFrames(filename string) [][]byte {
 	)
 	enc := gob.NewDecoder(&network)
 
-	file, err := os.Open("sounds/" + filename)
-	if err != nil {
-		fmt.Println(filename, " does not exist.")
-		return nil
+	if s3Persistence == "true" {
+		network.Write(fetchSoundsS3(filename).Bytes())
+	} else {
+		file, err := os.Open("sounds/" + filename)
+		if err != nil {
+			fmt.Println(filename, " does not exist.")
+			return nil
+		}
+
+		// TODO: I think I can just remove network. Leaving until v1 is done.
+		fileinfo, err := file.Stat()
+		filesize := fileinfo.Size()
+		buffer := make([]byte, filesize)
+		_, err = file.Read(buffer)
+		network.Write(buffer)
 	}
 
-	// TODO: I think I can just remove network. Leaving until v1 is done.
-	fileinfo, err := file.Stat()
-	filesize := fileinfo.Size()
-	buffer := make([]byte, filesize)
-	_, err = file.Read(buffer)
-	network.Write(buffer)
-
-	err = enc.Decode(&opusStruct)
+	err := enc.Decode(&opusStruct)
 	if err != nil {
 		log.Fatal("gobDecodeOpusFrames error:", err)
 	}

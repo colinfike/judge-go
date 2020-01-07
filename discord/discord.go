@@ -53,6 +53,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		playSound(m.Content, s, m)
 		delayedDeleteMessage(s, m.Message)
 	}
+	if strings.Contains(m.Content, "$list") {
+		sounds := listSounds()
+		joinedSounds := strings.Join(sounds, ", ")
+		s.ChannelMessageSend(m.ChannelID, "Available sounds: "+joinedSounds)
+	}
 
 	if containsBannedContent(m.Content) {
 		deleteMessage(s, m.Message)
