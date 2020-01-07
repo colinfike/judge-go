@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -36,10 +37,10 @@ type OpusAudio struct {
 func playSound(command string, session *discordgo.Session, message *discordgo.MessageCreate) {
 	// ToDo: Put command into struct
 	tokens := strings.Split(command, " ")
-	// if len(tokens) < 5 {
-	// 	fmt.Println("Invalid command. Should be 5 tokens.")
-	// 	return
-	// }
+	if len(tokens) < 2 {
+		fmt.Println("Invalid command. Should be 2 tokens.")
+		return
+	}
 
 	decodedFrames := gobDecodeOpusFrames(tokens[1])
 	pipeOpusToDiscord(decodedFrames, session, message)
@@ -47,16 +48,17 @@ func playSound(command string, session *discordgo.Session, message *discordgo.Me
 
 // Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s
 func ripSound(command string) {
-
 	// ToDo: Put command into struct
 	tokens := strings.Split(command, " ")
-	// if len(tokens) < 5 {
-	// 	fmt.Println("Invalid command. Should be 5 tokens.")
-	// 	return
-	// }
+	if len(tokens) < 5 {
+		fmt.Println("Invalid command. Should be 5 tokens.")
+		return
+	}
 
 	videoBuf := fetchVideoData(tokens[2])
-	opusFrames := convertToOpusFrames(videoBuf)
+	start, duration := parseAudioLength(tokens[3], tokens[4])
+	opusFrames := convertToOpusFrames(videoBuf, start, duration)
+
 	encodedFrames := gobEncodeOpusFrames(opusFrames)
 	success := writeToFile(encodedFrames, tokens[1])
 	if !success {
@@ -64,11 +66,24 @@ func ripSound(command string) {
 	}
 }
 
+func parseAudioLength(start string, end string) (string, string) {
+	startSec := convertTimeToSec(start)
+	endSec := convertTimeToSec(end)
+	return strconv.Itoa(startSec), strconv.Itoa(endSec - startSec)
+}
+
+func convertTimeToSec(timestamp string) int {
+	re := regexp.MustCompile(`(\d*)m(\d*)s`)
+	matches := re.FindSubmatch([]byte(timestamp))
+	minutes, _ := strconv.Atoi(string(matches[1]))
+	seconds, _ := strconv.Atoi(string(matches[2]))
+	return minutes*60 + seconds
+}
+
 // ToDO: Fix duplication?
 func fetchVideoData(url string) *bytes.Buffer {
 	vid, err := ytdl.GetVideoInfo(url)
 	if err != nil {
-		// ToDo: Have message be returned to users explaining this failed
 		fmt.Println("Failed to get video info: ", url)
 		return nil
 	}
@@ -83,8 +98,8 @@ func fetchVideoData(url string) *bytes.Buffer {
 	return buf
 }
 
-func convertToOpusFrames(videoBuf *bytes.Buffer) [][]byte {
-	run := exec.Command("ffmpeg", "-i", "pipe:0", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "pipe:1")
+func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) [][]byte {
+	run := exec.Command("ffmpeg", "-i", "pipe:0", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "-ss", start, "-t", duration, "pipe:1")
 	ffmpegOut, _ := run.StdoutPipe()
 	ffmpegIn, _ := run.StdinPipe()
 
@@ -101,14 +116,10 @@ func convertToOpusFrames(videoBuf *bytes.Buffer) [][]byte {
 	opusEncoder, _ := gopus.NewEncoder(frameRate, channels, gopus.Audio)
 	opusFrames := make([][]byte, 10)
 	for {
-		fmt.Println("Looped", ffmpegbuf.Size())
 		// CDF: This represents a single frame. 20ms * 48 samples/ms * 2 channels
 		frameBuf := make([]int16, frameSize*channels)
-		fmt.Println("before")
 		err := binary.Read(ffmpegbuf, binary.LittleEndian, &frameBuf)
-		fmt.Println("after")
 		if err != nil {
-			fmt.Println("EOF reached.")
 			return opusFrames
 		}
 		opusFrame, _ := opusEncoder.Encode(frameBuf, frameSize, maxBytes)
@@ -154,6 +165,7 @@ func gobDecodeOpusFrames(filename string) [][]byte {
 	file, err := os.Open("sounds/" + filename)
 	if err != nil {
 		fmt.Println(filename, " does not exist.")
+		return nil
 	}
 
 	// TODO: I think I can just remove network. Leaving until v1 is done.
@@ -171,9 +183,8 @@ func gobDecodeOpusFrames(filename string) [][]byte {
 }
 
 func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.MessageCreate) {
-
 	vs, err := findUserVoiceState(s, m.Author.ID)
-	// Connect to voice channel.
+
 	// NOTE: Setting mute to false, deaf to true.
 	dgv, err := s.ChannelVoiceJoin(m.GuildID, vs.ChannelID, false, true)
 	if err != nil {
@@ -197,7 +208,6 @@ func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.M
 	}()
 
 	for _, byteArray := range opusFrames {
-		fmt.Println("ByteSlice length: ", len(byteArray))
 		dgv.OpusSend <- byteArray
 	}
 }
