@@ -18,6 +18,8 @@ const (
 	DeleteDelay = 3 * time.Second
 	// CensorRegex is a regex of all banned words
 	CensorRegex = `\b(jon|wakeley|wakefest)\b`
+	// HallOfFameChanID is the ChannelID of the Hall of Fame Channel
+	HallOfFameChanID = "453637849234014219"
 )
 
 // Start is the main initialization function for the bot.
@@ -26,6 +28,7 @@ func Start() {
 	dg, _ := discordgo.New("Bot " + token)
 
 	dg.AddHandler(messageCreate)
+	dg.AddHandler(messageReactionAdd)
 
 	_ = dg.Open()
 
@@ -35,6 +38,21 @@ func Start() {
 	<-sc
 
 	dg.Close()
+}
+
+func messageReactionAdd(s *discordgo.Session, event *discordgo.MessageReactionAdd) {
+	message, err := s.ChannelMessage(event.ChannelID, event.MessageID)
+	if err != nil {
+		// Top level
+		fmt.Println("Message does not exist.")
+	}
+	for _, reaction := range message.Reactions {
+		if reaction.Emoji.Name == "👌" {
+			if reaction.Count > 2 {
+				addToHallOfFame(s, message)
+			}
+		}
+	}
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
@@ -125,4 +143,10 @@ func findUserVoiceState(session *discordgo.Session, userid string) (*discordgo.V
 		}
 	}
 	return nil, errors.New("Could not find user's voice state")
+}
+
+func addToHallOfFame(s *discordgo.Session, m *discordgo.Message) {
+	ts, _ := m.Timestamp.Parse()
+	msgTxt := fmt.Sprintf("**Posted on %v by %v.**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, m.Content)
+	_, _ = s.ChannelMessageSend(HallOfFameChanID, msgTxt)
 }

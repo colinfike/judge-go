@@ -37,6 +37,7 @@ type OpusAudio struct {
 	ByteArray [][]byte
 }
 
+// TODO: Commands maybe should be moved into their own file and solely audio utility functions live here
 func playSound(command string, session *discordgo.Session, message *discordgo.MessageCreate) {
 	// ToDo: Put command into struct
 	tokens := strings.Split(command, " ")
@@ -45,16 +46,22 @@ func playSound(command string, session *discordgo.Session, message *discordgo.Me
 		return
 	}
 
-	decodedFrames := gobDecodeOpusFrames(tokens[1])
+	var opusData []byte
+	if s3Persistence == "true" {
+		opusData = getSoundS3(tokens[1])
+	} else {
+		opusData = getSoundLocal(tokens[1])
+	}
+
+	decodedFrames := gobDecodeOpusFrames(opusData)
 	pipeOpusToDiscord(decodedFrames, session, message)
 }
 
 func listSounds() []string {
 	if s3Persistence == "true" {
 		return listSoundsS3()
-	} else {
-		return listSoundsLocal()
 	}
+	return listSoundsLocal()
 }
 
 // Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s
@@ -176,6 +183,20 @@ func listSoundsLocal() []string {
 	return sounds
 }
 
+func getSoundLocal(filename string) []byte {
+	file, err := os.Open("sounds/" + filename)
+	if err != nil {
+		fmt.Println(filename, " does not exist.")
+		return nil
+	}
+	// TODO: I can probably replace all this with a Reader or something.
+	fileinfo, err := file.Stat()
+	filesize := fileinfo.Size()
+	buf := make([]byte, filesize)
+	_, err = file.Read(buf)
+	return buf
+}
+
 func gobEncodeOpusFrames(opusFrames [][]byte) bytes.Buffer {
 	var network bytes.Buffer
 	enc := gob.NewEncoder(&network)
@@ -186,29 +207,13 @@ func gobEncodeOpusFrames(opusFrames [][]byte) bytes.Buffer {
 	return network
 }
 
-func gobDecodeOpusFrames(filename string) [][]byte {
+func gobDecodeOpusFrames(data []byte) [][]byte {
 	var (
 		network    bytes.Buffer
 		opusStruct OpusAudio
 	)
 	enc := gob.NewDecoder(&network)
-
-	if s3Persistence == "true" {
-		network.Write(fetchSoundsS3(filename).Bytes())
-	} else {
-		file, err := os.Open("sounds/" + filename)
-		if err != nil {
-			fmt.Println(filename, " does not exist.")
-			return nil
-		}
-
-		// TODO: I think I can just remove network. Leaving until v1 is done.
-		fileinfo, err := file.Stat()
-		filesize := fileinfo.Size()
-		buffer := make([]byte, filesize)
-		_, err = file.Read(buffer)
-		network.Write(buffer)
-	}
+	network.Write(data)
 
 	err := enc.Decode(&opusStruct)
 	if err != nil {

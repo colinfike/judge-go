@@ -52,7 +52,7 @@ func putSoundS3(sound bytes.Buffer, name string) bool {
 	return true
 }
 
-func fetchSoundsS3(name string) *aws.WriteAtBuffer {
+func getSoundS3(name string) []byte {
 	sess, _ := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-1")},
 	)
@@ -64,5 +64,5 @@ func fetchSoundsS3(name string) *aws.WriteAtBuffer {
 			Bucket: aws.String(BucketName),
 			Key:    aws.String("sound-clips/" + name),
 		})
-	return buf
+	return buf.Bytes()
 }
