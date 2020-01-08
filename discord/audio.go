@@ -5,12 +5,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -65,64 +66,46 @@ func listSounds() []string {
 }
 
 // Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s
-func ripSound(command string) {
-	// ToDo: Put command into struct
-	tokens := strings.Split(command, " ")
-	if len(tokens) < 5 {
-		fmt.Println("Invalid command. Should be 5 tokens.")
-		return
+func ripSound(ripCmd RipCommand) error {
+	videoBuf, err := fetchVideoData(ripCmd.url)
+	if err != nil {
+		return err
 	}
-
-	videoBuf := fetchVideoData(tokens[2])
-	start, duration := parseAudioLength(tokens[3], tokens[4])
-	opusFrames := convertToOpusFrames(videoBuf, start, duration)
+	opusFrames, err := convertToOpusFrames(videoBuf, ripCmd.start, ripCmd.duration)
+	if err != nil {
+		return err
+	}
 	encodedFrames := gobEncodeOpusFrames(opusFrames)
 
 	var success bool
 	if s3Persistence == "true" {
-		success = putSoundS3(encodedFrames, tokens[1])
+		success = putSoundS3(encodedFrames, ripCmd.name)
 	} else {
-		success = putSoundLocal(encodedFrames, tokens[1])
+		success = putSoundLocal(encodedFrames, ripCmd.name)
 	}
 	if !success {
 		fmt.Println("Error saving audio file.")
 	}
+	return nil
 }
 
-// TODO: A lot of this utility work should probably go into the tokenization functionality.
-func parseAudioLength(start string, end string) (string, string) {
-	startSec := convertTimeToSec(start)
-	endSec := convertTimeToSec(end)
-	return strconv.Itoa(startSec), strconv.Itoa(endSec - startSec)
-}
-
-// TODO: A lot of this utility work should probably go into the tokenization functionality.
-func convertTimeToSec(timestamp string) int {
-	re := regexp.MustCompile(`(\d*)m(\d*)s`)
-	matches := re.FindSubmatch([]byte(timestamp))
-	minutes, _ := strconv.Atoi(string(matches[1]))
-	seconds, _ := strconv.Atoi(string(matches[2]))
-	return minutes*60 + seconds
-}
-
-func fetchVideoData(url string) *bytes.Buffer {
+func fetchVideoData(url string) (*bytes.Buffer, error) {
 	vid, err := ytdl.GetVideoInfo(url)
 	if err != nil {
-		fmt.Println("Failed to get video info: ", url)
-		return nil
+		return nil, errors.New("Failed to get video info")
 	}
+
 	buf := new(bytes.Buffer)
 	// ToDo: Customize formats?
 	err = vid.Download(vid.Formats[0], buf)
 	if err != nil {
-		fmt.Println("Error downloading video: ", err)
-		return nil
+		return nil, errors.New("Error downloading video")
 	}
 
-	return buf
+	return buf, nil
 }
 
-func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) [][]byte {
+func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) ([][]byte, error) {
 	run := exec.Command("ffmpeg", "-i", "pipe:0", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "-ss", start, "-t", duration, "pipe:1")
 	ffmpegOut, _ := run.StdoutPipe()
 	ffmpegIn, _ := run.StdinPipe()
@@ -135,18 +118,28 @@ func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) 
 	// CDF: Did the buffer here make it chunk?
 	ffmpegbuf := bufio.NewReader(ffmpegOut)
 
-	_ = run.Start()
+	err := run.Start()
+	if err != nil {
+		return nil, errors.New("Error converting video")
+	}
 
 	opusEncoder, _ := gopus.NewEncoder(frameRate, channels, gopus.Audio)
 	opusFrames := make([][]byte, 0)
 	for {
 		// CDF: This represents a single frame. 20ms * 48 samples/ms * 2 channels
 		frameBuf := make([]int16, frameSize*channels)
+
 		err := binary.Read(ffmpegbuf, binary.LittleEndian, &frameBuf)
-		if err != nil {
-			return opusFrames
+		if err == io.EOF {
+			return opusFrames, nil
+		} else if err != nil {
+			return nil, errors.New("Error reading audio")
 		}
-		opusFrame, _ := opusEncoder.Encode(frameBuf, frameSize, maxBytes)
+
+		opusFrame, err := opusEncoder.Encode(frameBuf, frameSize, maxBytes)
+		if err != nil {
+			return nil, errors.New("Error encoding audio")
+		}
 		opusFrames = append(opusFrames, opusFrame)
 	}
 }
@@ -197,14 +190,14 @@ func getSoundLocal(filename string) []byte {
 	return buf
 }
 
-func gobEncodeOpusFrames(opusFrames [][]byte) bytes.Buffer {
+func gobEncodeOpusFrames(opusFrames [][]byte) (bytes.Buffer, error) {
 	var network bytes.Buffer
 	enc := gob.NewEncoder(&network)
 	err := enc.Encode(OpusAudio{ByteArray: opusFrames})
 	if err != nil {
-		log.Fatal("gobEncodeOpusFrames error:", err)
+		return nil, errors.New("Error gobbing frames")
 	}
-	return network
+	return network, nil
 }
 
 func gobDecodeOpusFrames(data []byte) [][]byte {

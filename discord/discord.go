@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
-	"strings"
 	"syscall"
 	"time"
 
@@ -62,30 +61,58 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
-	if strings.Contains(m.Content, "trevor") {
-		s.ChannelMessageSend(m.ChannelID, "I wish Trev wasn't around anymore")
-	}
-	if strings.Contains(m.Content, "$rip") {
-		ripSound(m.Content)
-		// TODO: Can create a function to handle response and deletion
-		message, _ := s.ChannelMessageSend(m.ChannelID, "Successfully created sound.")
-		delayedDeleteMessage(s, m.Message, message)
-	}
-	if strings.Contains(m.Content, "$play") {
-		playSound(m.Content, s, m)
-		delayedDeleteMessage(s, m.Message)
-	}
-	if strings.Contains(m.Content, "$list") {
-		sounds := listSounds()
-		joinedSounds := strings.Join(sounds, ", ")
-		s.ChannelMessageSend(m.ChannelID, "Available sounds: "+joinedSounds)
+	cmd, err := ParseMsg(m.Content)
+	if err != nil {
+		fmt.Println(err)
+		s.ChannelMessageSend(m.ChannelID, err.Error())
+		return
 	}
 
-	if containsBannedContent(m.Content) {
-		deleteMessage(s, m.Message)
-		message, _ := s.ChannelMessageSend(m.ChannelID, "That's banned content.")
-		delayedDeleteMessage(s, message)
+	var resp string
+	switch cmd.(type) {
+	case RipCommand:
+		err = ripSound(cmd.(RipCommand))
+		resp = "Sound successfully created!"
+	default:
+		fmt.Println("Default")
 	}
+
+	if err != nil {
+		s.ChannelMessageSend(m.ChannelID, err.Error())
+		return
+	}
+
+	msg, err := s.ChannelMessageSend(m.ChannelID, resp)
+	delayedDeleteMessage(s, msg)
+
+	// fmt.Println(reflect.TypeOf(cmd) == RipCommand)
+	// if (t, ok := cmd.(Ripcmd)) {
+	// 	ripSound(t)
+	// }
+	// if strings.Contains(m.Content, "trevor") {
+	// 	s.ChannelMessageSend(m.ChannelID, "I wish Trev wasn't around anymore")
+	// }
+	// if strings.Contains(m.Content, "$rip") {
+	// 	ripSound(m.Content)
+	// 	// TODO: Can create a function to handle response and deletion
+	// 	message, _ := s.ChannelMessageSend(m.ChannelID, "Successfully created sound.")
+	// 	delayedDeleteMessage(s, m.Message, message)
+	// }
+	// if strings.Contains(m.Content, "$play") {
+	// 	playSound(m.Content, s, m)
+	// 	delayedDeleteMessage(s, m.Message)
+	// }
+	// if strings.Contains(m.Content, "$list") {
+	// 	sounds := listSounds()
+	// 	joinedSounds := strings.Join(sounds, ", ")
+	// 	s.ChannelMessageSend(m.ChannelID, "Available sounds: "+joinedSounds)
+	// }
+
+	// if containsBannedContent(m.Content) {
+	// 	deleteMessage(s, m.Message)
+	// 	message, _ := s.ChannelMessageSend(m.ChannelID, "That's banned content.")
+	// 	delayedDeleteMessage(s, message)
+	// }
 }
 
 func containsBannedContent(message string) bool {
