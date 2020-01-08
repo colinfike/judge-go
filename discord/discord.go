@@ -30,7 +30,10 @@ func Start() {
 	dg.AddHandler(messageCreate)
 	dg.AddHandler(messageReactionAdd)
 
-	_ = dg.Open()
+	err := dg.Open()
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
 	sc := make(chan os.Signal, 1)

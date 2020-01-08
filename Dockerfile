@@ -5,11 +5,14 @@ WORKDIR /app
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o judge-go-bot .
-# RUN CGO_ENABLED=0 GOOS=linux go build -a -o judge-go-bot .
+RUN GOOS=linux go build -a
 
 # Define image for deploy
 FROM alpine:latest  
+
+RUN apk add --no-cache \
+        ca-certificates \
+        libc6-compat
 
 RUN wget https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz && tar xvf ffmpeg-git-amd64-static.tar.xz && mv ffmpeg-git-*-amd64-static/ffmpeg /usr/local/bin/
 
