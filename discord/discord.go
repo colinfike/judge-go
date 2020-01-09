@@ -63,7 +63,6 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 	cmd, err := ParseMsg(m.Content)
 	if err != nil {
-		fmt.Println(err)
 		s.ChannelMessageSend(m.ChannelID, err.Error())
 		return
 	}
@@ -75,6 +74,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		resp = "Sound successfully created!"
 	default:
 		fmt.Println("Default")
+		return
 	}
 
 	if err != nil {

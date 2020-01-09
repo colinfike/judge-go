@@ -66,6 +66,9 @@ func listSounds() []string {
 }
 
 // Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s
+// TODO: The code duplication here for error handling is unreal.
+// Consider adding functionality to the functions so they return instantly
+// if passed a nil value so we can a single error check at the end.
 func ripSound(ripCmd RipCommand) error {
 	videoBuf, err := fetchVideoData(ripCmd.url)
 	if err != nil {
@@ -75,24 +78,23 @@ func ripSound(ripCmd RipCommand) error {
 	if err != nil {
 		return err
 	}
-	encodedFrames := gobEncodeOpusFrames(opusFrames)
+	encodedFrames, err := gobEncodeOpusFrames(opusFrames)
+	if err != nil {
+		return err
+	}
 
-	var success bool
 	if s3Persistence == "true" {
-		success = putSoundS3(encodedFrames, ripCmd.name)
+		err = putSoundS3(encodedFrames, ripCmd.name)
 	} else {
-		success = putSoundLocal(encodedFrames, ripCmd.name)
+		err = putSoundLocal(encodedFrames, ripCmd.name)
 	}
-	if !success {
-		fmt.Println("Error saving audio file.")
-	}
-	return nil
+	return err
 }
 
 func fetchVideoData(url string) (*bytes.Buffer, error) {
 	vid, err := ytdl.GetVideoInfo(url)
 	if err != nil {
-		return nil, errors.New("Failed to get video info")
+		return nil, errors.New("Failed to get video info. Is the url valid?")
 	}
 
 	buf := new(bytes.Buffer)
@@ -144,22 +146,15 @@ func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) 
 	}
 }
 
-func putSoundLocal(buf bytes.Buffer, fileName string) bool {
+func putSoundLocal(buf *bytes.Buffer, fileName string) error {
 	file, err := os.Create("sounds/" + fileName)
 	if err != nil {
-		fmt.Println("Error creating file: ", err)
-		return false
+		return err
 	}
 	defer file.Close()
 
-	bytesWritten, err := file.Write(buf.Bytes())
-	fmt.Printf("Wrote %v bytes.\n", bytesWritten)
-	if err != nil {
-		fmt.Println("Error writing audio: ", err)
-		return false
-	}
-
-	return true
+	_, err = file.Write(buf.Bytes())
+	return err
 }
 
 func listSoundsLocal() []string {
@@ -190,9 +185,9 @@ func getSoundLocal(filename string) []byte {
 	return buf
 }
 
-func gobEncodeOpusFrames(opusFrames [][]byte) (bytes.Buffer, error) {
-	var network bytes.Buffer
-	enc := gob.NewEncoder(&network)
+func gobEncodeOpusFrames(opusFrames [][]byte) (*bytes.Buffer, error) {
+	network := bytes.NewBuffer(nil)
+	enc := gob.NewEncoder(network)
 	err := enc.Encode(OpusAudio{ByteArray: opusFrames})
 	if err != nil {
 		return nil, errors.New("Error gobbing frames")

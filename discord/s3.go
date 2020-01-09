@@ -36,20 +36,25 @@ func listSoundsS3() []string {
 	return sounds
 }
 
-func putSoundS3(sound bytes.Buffer, name string) bool {
-	sess, _ := session.NewSession(&aws.Config{
+func putSoundS3(sound *bytes.Buffer, name string) error {
+	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-1")},
 	)
+	if err != nil {
+		return err
+	}
+
 	uploader := s3manager.NewUploader(sess)
-	_, err := uploader.Upload(&s3manager.UploadInput{
+	_, err = uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(BucketName),
 		Key:    aws.String("sound-clips/" + name),
-		Body:   &sound,
+		Body:   sound,
 	})
 	if err != nil {
-		return false
+		return err
 	}
-	return true
+
+	return nil
 }
 
 func getSoundS3(name string) []byte {
