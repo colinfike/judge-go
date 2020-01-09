@@ -19,15 +19,19 @@ import (
 
 const (
 	// DeleteDelay is the duration of time to wait before deleting a message
-	DeleteDelay = 3 * time.Second
+	DeleteDelay = 8 * time.Second
 	// CensorRegex is a regex of all banned words
-	CensorRegex = `\b(jon|wakeley|wakefest)\b`
+	CensorRegex = `\b(wakeley|wakefest)\b`
 	// HallOfFameChanID is the ChannelID of the Hall of Fame Channel
 	HallOfFameChanID = "453637849234014219"
 )
 
 // Start is the main initialization function for the bot.
 func Start() {
+	if os.Getenv("S3_PERSISTENCE") == "false" {
+		initSoundDir()
+	}
+
 	token := os.Getenv("JUDGE_GO_BOT_TOKEN")
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
@@ -64,6 +68,8 @@ func messageReactionAdd(s *discordgo.Session, event *discordgo.MessageReactionAd
 	}
 }
 
+// CommandResult contains the result of whatever resolving a command. It allows
+// us to control the bot sending text or audio and/or deleting user messages.
 type CommandResult struct {
 	resp          string
 	audio         [][]byte
@@ -200,5 +206,16 @@ func addToHallOfFame(s *discordgo.Session, m *discordgo.Message) error {
 		return err
 	}
 
+	return nil
+}
+
+func initSoundDir() error {
+	_, err := os.Stat("sounds/")
+	if os.IsNotExist(err) {
+		err = os.Mkdir("sounds", os.ModePerm)
+	}
+	if err != nil {
+		return err
+	}
 	return nil
 }

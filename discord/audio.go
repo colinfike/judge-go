@@ -111,6 +111,7 @@ func fetchVideoData(url string) (*bytes.Buffer, error) {
 	return buf, nil
 }
 
+// TODO: Opportunity to tune this function a bit more I think.
 func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) ([][]byte, error) {
 	run := exec.Command("ffmpeg", "-i", "pipe:0", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "-ss", start, "-t", duration, "pipe:1")
 	ffmpegOut, _ := run.StdoutPipe()
@@ -121,7 +122,6 @@ func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) 
 		ffmpegIn.Write(videoBuf.Bytes())
 	}()
 
-	// CDF: Did the buffer here make it chunk?
 	ffmpegbuf := bufio.NewReader(ffmpegOut)
 
 	err := run.Start()

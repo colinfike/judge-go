@@ -8,16 +8,23 @@ import (
 	"strings"
 )
 
+// RipCommand contains all pertinent info to resole the $rip command
 type RipCommand struct {
 	name     string
 	url      string
 	start    string
 	duration string
 }
+
+// PlayCommand contains all pertinent info to resole the $play command
 type PlayCommand struct {
 	name string
 }
+
+// ListCommand contains all pertinent info to resolve the $list command (Yes nothing for now)
 type ListCommand struct{}
+
+// MessageCommand contains all pertinent info to resolve a normal message (bit of a cheat)
 type MessageCommand struct {
 	content string
 }
