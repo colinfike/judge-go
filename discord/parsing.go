@@ -14,11 +14,16 @@ type RipCommand struct {
 	start    string
 	duration string
 }
+type PlayCommand struct {
+	name string
+}
 
 const (
-	ripPrefix        string = "$rip "
-	ripCmdTokenCount int    = 5
-	timestampRegex   string = "^\\d+m\\d+s$"
+	ripPrefix         string = "$rip "
+	ripCmdTokenCount  int    = 5
+	timestampRegex    string = "^\\d+m\\d+s$"
+	playPrefix        string = "$play "
+	playCmdTokenCount int    = 5
 )
 
 // ParseMsg parses the message string and returns a struct based on the type of message it is.
@@ -29,6 +34,8 @@ func ParseMsg(msg string) (interface{}, error) {
 	)
 	if strings.HasPrefix(msg, ripPrefix) {
 		command, err = parseRipCmd(msg)
+	} else if strings.HasPrefix(msg, playPrefix) {
+		command, err = parsePlayCmd(msg)
 	}
 	return command, err
 }
@@ -51,6 +58,18 @@ func parseRipCmd(msg string) (RipCommand, error) {
 		return cmd, errors.New("Invalid time stamps. Use XmYs form")
 	}
 	cmd.start, cmd.duration = parseAudioLength(tokens[3], tokens[4])
+
+	return cmd, nil
+}
+
+func parsePlayCmd(msg string) (PlayCommand, error) {
+	cmd := PlayCommand{}
+
+	tokens := strings.Split(msg, " ")
+	if len(tokens) < 2 {
+		return cmd, errors.New("Expected 2 tokens, received " + strconv.Itoa(len(tokens)))
+	}
+	cmd.name = tokens[1]
 
 	return cmd, nil
 }

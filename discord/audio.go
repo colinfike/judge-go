@@ -13,9 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/rylio/ytdl"
 	"layeh.com/gopus"
 )
@@ -39,23 +37,17 @@ type OpusAudio struct {
 }
 
 // TODO: Commands maybe should be moved into their own file and solely audio utility functions live here
-func playSound(command string, session *discordgo.Session, message *discordgo.MessageCreate) {
-	// ToDo: Put command into struct
-	tokens := strings.Split(command, " ")
-	if len(tokens) < 2 {
-		fmt.Println("Invalid command. Should be 2 tokens.")
-		return
-	}
-
+func playSound(playCmd PlayCommand) ([][]byte, error) {
 	var opusData []byte
 	if s3Persistence == "true" {
-		opusData = getSoundS3(tokens[1])
+		opusData = getSoundS3(playCmd.name)
 	} else {
-		opusData = getSoundLocal(tokens[1])
+		opusData = getSoundLocal(playCmd.name)
 	}
 
 	decodedFrames := gobDecodeOpusFrames(opusData)
-	pipeOpusToDiscord(decodedFrames, session, message)
+	return decodedFrames, nil
+	// pipeOpusToDiscord(decodedFrames, session, message)
 }
 
 func listSounds() []string {

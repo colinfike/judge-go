@@ -67,11 +67,19 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	var resp string
+	var (
+		resp string
+		opus [][]byte
+	)
 	switch cmd.(type) {
 	case RipCommand:
 		err = ripSound(cmd.(RipCommand))
 		resp = "Sound successfully created!"
+	case PlayCommand:
+		opus, err = playSound(cmd.(PlayCommand))
+		if opus != nil {
+			pipeOpusToDiscord(opus, s, m)
+		}
 	default:
 		fmt.Println("Default")
 		return
@@ -82,8 +90,10 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	msg, err := s.ChannelMessageSend(m.ChannelID, resp)
-	delayedDeleteMessage(s, msg)
+	if len(resp) > 0 {
+		msg, _ := s.ChannelMessageSend(m.ChannelID, resp)
+		delayedDeleteMessage(s, msg)
+	}
 
 	// fmt.Println(reflect.TypeOf(cmd) == RipCommand)
 	// if (t, ok := cmd.(Ripcmd)) {
