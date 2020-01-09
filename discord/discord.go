@@ -19,7 +19,7 @@ import (
 
 const (
 	// DeleteDelay is the duration of time to wait before deleting a message
-	DeleteDelay = 10 * time.Second
+	DeleteDelay = 3 * time.Second
 	// CensorRegex is a regex of all banned words
 	CensorRegex = `\b(jon|wakeley|wakefest)\b`
 	// HallOfFameChanID is the ChannelID of the Hall of Fame Channel
@@ -64,6 +64,42 @@ func messageReactionAdd(s *discordgo.Session, event *discordgo.MessageReactionAd
 	}
 }
 
+type CommandResult struct {
+	resp          string
+	audio         [][]byte
+	deleteUserMsg bool
+}
+
+func resolveCommand(cmd interface{}) CommandResult {
+	var (
+		cmdResult CommandResult
+		err       error
+	)
+	// ToDo: Make this default either via constructor or some Go funcctionality
+	cmdResult.deleteUserMsg = true
+	switch cmd.(type) {
+	case RipCommand:
+		err = ripSound(cmd.(RipCommand))
+		cmdResult.resp = "Sound successfully created!"
+	case PlayCommand:
+		cmdResult.audio, err = playSound(cmd.(PlayCommand))
+	case ListCommand:
+		cmdResult.resp, err = listSounds(cmd.(ListCommand))
+	case MessageCommand:
+		if containsBannedContent(cmd.(MessageCommand)) {
+			cmdResult.resp = "That's banned content."
+		}
+		cmdResult.deleteUserMsg = false
+	default:
+		log.Printf("Parsing broken: %+v", cmd)
+	}
+
+	if err != nil {
+		cmdResult.resp = err.Error()
+	}
+	return cmdResult
+}
+
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
@@ -74,39 +110,20 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	var (
-		resp string
-		opus [][]byte
-	)
-	switch cmd.(type) {
-	case RipCommand:
-		err = ripSound(cmd.(RipCommand))
-		resp = "Sound successfully created!"
-	case PlayCommand:
-		opus, err = playSound(cmd.(PlayCommand))
-		if opus != nil {
-			pipeOpusToDiscord(opus, s, m)
-		}
-	case ListCommand:
-		resp, err = listSounds(cmd.(ListCommand))
-	case MessageCommand:
-		if containsBannedContent(cmd.(MessageCommand)) {
-			resp = "That's banned content."
-			deleteMessage(s, m.Message)
-		}
-	default:
-		log.Println("Parsing broken by " + m.Content)
-		return
-	}
+	cmdResult := resolveCommand(cmd)
 
-	// ToDo: Can consolidate this I think
-	if err != nil {
-		s.ChannelMessageSend(m.ChannelID, err.Error())
-		return
+	if len(cmdResult.audio) > 0 {
+		err = pipeOpusToDiscord(cmdResult.audio, s, m)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, err.Error())
+		}
 	}
-	if len(resp) > 0 {
-		msg, _ := s.ChannelMessageSend(m.ChannelID, resp)
-		delayedDeleteMessage(s, msg, m.Message)
+	if cmdResult.deleteUserMsg {
+		deleteMessage(s, m.Message)
+	}
+	if len(cmdResult.resp) > 0 {
+		msg, _ := s.ChannelMessageSend(m.ChannelID, cmdResult.resp)
+		delayedDeleteMessage(s, msg)
 	}
 }
 
@@ -129,31 +146,33 @@ func delayedDeleteMessage(s *discordgo.Session, messages ...*discordgo.Message) 
 	}
 }
 
-func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.MessageCreate) {
+func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.MessageCreate) error {
 	vs, err := findUserVoiceState(s, m.Author.ID)
-
+	if err != nil {
+		return errors.New("Couldn't find user voice channel")
+	}
 	dgv, err := s.ChannelVoiceJoin(m.GuildID, vs.ChannelID, false, true)
 	if err != nil {
-		fmt.Println(err)
-		return
+		return errors.New("Couldn't join voice channel")
 	}
 	defer dgv.Disconnect()
 
 	err = dgv.Speaking(true)
 	if err != nil {
-		fmt.Println("Couldn't set speaking", err)
+		log.Println("Couldn't set speaking: ", err)
 	}
 
 	defer func() {
 		err := dgv.Speaking(false)
 		if err != nil {
-			fmt.Println("Couldn't stop speaking", err)
+			log.Println("Couldn't stop speaking: ", err)
 		}
 	}()
 
 	for _, byteArray := range opusFrames {
 		dgv.OpusSend <- byteArray
 	}
+	return nil
 }
 
 func findUserVoiceState(session *discordgo.Session, userid string) (*discordgo.VoiceState, error) {
@@ -167,8 +186,19 @@ func findUserVoiceState(session *discordgo.Session, userid string) (*discordgo.V
 	return nil, errors.New("Could not find user's voice state")
 }
 
-func addToHallOfFame(s *discordgo.Session, m *discordgo.Message) {
-	ts, _ := m.Timestamp.Parse()
+func addToHallOfFame(s *discordgo.Session, m *discordgo.Message) error {
+	ts, err := m.Timestamp.Parse()
+	if err != nil {
+		log.Println("Discord messed up here: ", err.Error())
+		return err
+	}
+
 	msgTxt := fmt.Sprintf("**Posted on %v by %v.**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, m.Content)
-	_, _ = s.ChannelMessageSend(HallOfFameChanID, msgTxt)
+	_, err = s.ChannelMessageSend(HallOfFameChanID, msgTxt)
+	if err != nil {
+		log.Println("Failed to create HoF message: ", err.Error())
+		return err
+	}
+
+	return nil
 }
