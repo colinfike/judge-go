@@ -65,7 +65,8 @@ func listSounds(listCmd ListCommand) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.Join(sounds, ", "), nil
+
+	return "Available Sounds: " + strings.Join(sounds, ", "), nil
 }
 
 // Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s

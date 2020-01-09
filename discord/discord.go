@@ -19,7 +19,7 @@ import (
 
 const (
 	// DeleteDelay is the duration of time to wait before deleting a message
-	DeleteDelay = 3 * time.Second
+	DeleteDelay = 10 * time.Second
 	// CensorRegex is a regex of all banned words
 	CensorRegex = `\b(jon|wakeley|wakefest)\b`
 	// HallOfFameChanID is the ChannelID of the Hall of Fame Channel
@@ -37,7 +37,7 @@ func Start() {
 	dg.AddHandler(messageCreate)
 	dg.AddHandler(messageReactionAdd)
 
-	err := dg.Open()
+	err = dg.Open()
 	if err != nil {
 		log.Println(err)
 	}
@@ -99,13 +99,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	// ToDo: Can consolidate this I think
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, err.Error())
 		return
 	}
 	if len(resp) > 0 {
 		msg, _ := s.ChannelMessageSend(m.ChannelID, resp)
-		delayedDeleteMessage(s, msg)
+		delayedDeleteMessage(s, msg, m.Message)
 	}
 }
 

@@ -23,12 +23,12 @@ type MessageCommand struct {
 }
 
 const (
-	ripPrefix         string = "$rip "
+	ripPrefix         string = "$rip"
 	ripCmdTokenCount  int    = 5
 	timestampRegex    string = "^\\d+m\\d+s$"
-	playPrefix        string = "$play "
+	playPrefix        string = "$play"
 	playCmdTokenCount int    = 5
-	listPrefix        string = "$list "
+	listPrefix        string = "$list"
 )
 
 // ParseMsg parses the message string and returns a struct based on the type of message it is.
@@ -37,12 +37,12 @@ func ParseMsg(msg string) (interface{}, error) {
 		command interface{}
 		err     error
 	)
-	// ToDo: How can we dry this up?
-	if strings.HasPrefix(msg, ripPrefix) {
+	cmdToken := strings.Split(msg, " ")[0]
+	if cmdToken == ripPrefix {
 		command, err = parseRipCmd(msg)
-	} else if strings.HasPrefix(msg, playPrefix) {
+	} else if cmdToken == playPrefix {
 		command, err = parsePlayCmd(msg)
-	} else if strings.HasPrefix(msg, listPrefix) {
+	} else if cmdToken == listPrefix {
 		command, err = parseListCmd(msg)
 	} else {
 		command, err = parseMessageCmd(msg)
