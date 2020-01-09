@@ -17,6 +17,10 @@ type RipCommand struct {
 type PlayCommand struct {
 	name string
 }
+type ListCommand struct{}
+type MessageCommand struct {
+	content string
+}
 
 const (
 	ripPrefix         string = "$rip "
@@ -24,6 +28,7 @@ const (
 	timestampRegex    string = "^\\d+m\\d+s$"
 	playPrefix        string = "$play "
 	playCmdTokenCount int    = 5
+	listPrefix        string = "$list "
 )
 
 // ParseMsg parses the message string and returns a struct based on the type of message it is.
@@ -32,10 +37,15 @@ func ParseMsg(msg string) (interface{}, error) {
 		command interface{}
 		err     error
 	)
+	// ToDo: How can we dry this up?
 	if strings.HasPrefix(msg, ripPrefix) {
 		command, err = parseRipCmd(msg)
 	} else if strings.HasPrefix(msg, playPrefix) {
 		command, err = parsePlayCmd(msg)
+	} else if strings.HasPrefix(msg, listPrefix) {
+		command, err = parseListCmd(msg)
+	} else {
+		command, err = parseMessageCmd(msg)
 	}
 	return command, err
 }
@@ -72,6 +82,14 @@ func parsePlayCmd(msg string) (PlayCommand, error) {
 	cmd.name = tokens[1]
 
 	return cmd, nil
+}
+
+func parseListCmd(msg string) (ListCommand, error) {
+	return ListCommand{}, nil
+}
+
+func parseMessageCmd(msg string) (MessageCommand, error) {
+	return MessageCommand{msg}, nil
 }
 
 func isValidURL(testURL string) bool {

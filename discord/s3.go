@@ -2,6 +2,7 @@ package discord
 
 import (
 	"bytes"
+	"errors"
 	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -17,13 +18,19 @@ const (
 	SoundClipRegex = "sound-clips/(.+)"
 )
 
-func listSoundsS3() []string {
-	sess, _ := session.NewSession(&aws.Config{
+func listSoundsS3() ([]string, error) {
+	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-1")},
 	)
+	if err != nil {
+		return nil, errors.New("Unable to access AWS")
+	}
 	svc := s3.New(sess)
 
-	resp, _ := svc.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: aws.String(BucketName)})
+	resp, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: aws.String(BucketName)})
+	if err != nil {
+		return nil, errors.New("Unable to access sound bucket")
+	}
 
 	sounds := make([]string, 0)
 	re := regexp.MustCompile(SoundClipRegex)
@@ -33,7 +40,7 @@ func listSoundsS3() []string {
 			sounds = append(sounds, string(matches[1]))
 		}
 	}
-	return sounds
+	return sounds, nil
 }
 
 func putSoundS3(sound *bytes.Buffer, name string) error {

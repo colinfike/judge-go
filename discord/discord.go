@@ -3,6 +3,7 @@ package discord
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"regexp"
@@ -11,6 +12,10 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 )
+
+// TODO: General error handling can be updated. I don't want to obfuscate the actual error for a user
+// friendly message which is the current pattern. Can probably just extend Error and then print the
+// actual error to log and respond to the user with the nice message.
 
 const (
 	// DeleteDelay is the duration of time to wait before deleting a message
@@ -24,14 +29,17 @@ const (
 // Start is the main initialization function for the bot.
 func Start() {
 	token := os.Getenv("JUDGE_GO_BOT_TOKEN")
-	dg, _ := discordgo.New("Bot " + token)
+	dg, err := discordgo.New("Bot " + token)
+	if err != nil {
+		log.Println(err)
+	}
 
 	dg.AddHandler(messageCreate)
 	dg.AddHandler(messageReactionAdd)
 
 	err := dg.Open()
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
@@ -45,8 +53,7 @@ func Start() {
 func messageReactionAdd(s *discordgo.Session, event *discordgo.MessageReactionAdd) {
 	message, err := s.ChannelMessage(event.ChannelID, event.MessageID)
 	if err != nil {
-		// Top level
-		fmt.Println("Message does not exist.")
+		log.Printf("Message does not exist: %v", err)
 	}
 	for _, reaction := range message.Reactions {
 		if reaction.Emoji.Name == "👌" {
@@ -80,8 +87,15 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if opus != nil {
 			pipeOpusToDiscord(opus, s, m)
 		}
+	case ListCommand:
+		resp, err = listSounds(cmd.(ListCommand))
+	case MessageCommand:
+		if containsBannedContent(cmd.(MessageCommand)) {
+			resp = "That's banned content."
+			deleteMessage(s, m.Message)
+		}
 	default:
-		fmt.Println("Default")
+		log.Println("Parsing broken by " + m.Content)
 		return
 	}
 
@@ -89,45 +103,15 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		s.ChannelMessageSend(m.ChannelID, err.Error())
 		return
 	}
-
 	if len(resp) > 0 {
 		msg, _ := s.ChannelMessageSend(m.ChannelID, resp)
 		delayedDeleteMessage(s, msg)
 	}
-
-	// fmt.Println(reflect.TypeOf(cmd) == RipCommand)
-	// if (t, ok := cmd.(Ripcmd)) {
-	// 	ripSound(t)
-	// }
-	// if strings.Contains(m.Content, "trevor") {
-	// 	s.ChannelMessageSend(m.ChannelID, "I wish Trev wasn't around anymore")
-	// }
-	// if strings.Contains(m.Content, "$rip") {
-	// 	ripSound(m.Content)
-	// 	// TODO: Can create a function to handle response and deletion
-	// 	message, _ := s.ChannelMessageSend(m.ChannelID, "Successfully created sound.")
-	// 	delayedDeleteMessage(s, m.Message, message)
-	// }
-	// if strings.Contains(m.Content, "$play") {
-	// 	playSound(m.Content, s, m)
-	// 	delayedDeleteMessage(s, m.Message)
-	// }
-	// if strings.Contains(m.Content, "$list") {
-	// 	sounds := listSounds()
-	// 	joinedSounds := strings.Join(sounds, ", ")
-	// 	s.ChannelMessageSend(m.ChannelID, "Available sounds: "+joinedSounds)
-	// }
-
-	// if containsBannedContent(m.Content) {
-	// 	deleteMessage(s, m.Message)
-	// 	message, _ := s.ChannelMessageSend(m.ChannelID, "That's banned content.")
-	// 	delayedDeleteMessage(s, message)
-	// }
 }
 
-func containsBannedContent(message string) bool {
+func containsBannedContent(messageCmd MessageCommand) bool {
 	re := regexp.MustCompile(CensorRegex)
-	if re.FindIndex([]byte(message)) != nil {
+	if re.FindIndex([]byte(messageCmd.content)) != nil {
 		return true
 	}
 	return false
@@ -147,7 +131,6 @@ func delayedDeleteMessage(s *discordgo.Session, messages ...*discordgo.Message) 
 func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.MessageCreate) {
 	vs, err := findUserVoiceState(s, m.Author.ID)
 
-	// NOTE: Setting mute to false, deaf to true.
 	dgv, err := s.ChannelVoiceJoin(m.GuildID, vs.ChannelID, false, true)
 	if err != nil {
 		fmt.Println(err)
@@ -155,13 +138,11 @@ func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.M
 	}
 	defer dgv.Disconnect()
 
-	// Send "speaking" packet over the voice websocket
 	err = dgv.Speaking(true)
 	if err != nil {
 		fmt.Println("Couldn't set speaking", err)
 	}
 
-	// Send not "speaking" packet over the websocket when we finish
 	defer func() {
 		err := dgv.Speaking(false)
 		if err != nil {

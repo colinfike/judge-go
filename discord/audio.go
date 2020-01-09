@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/rylio/ytdl"
 	"layeh.com/gopus"
@@ -50,11 +51,21 @@ func playSound(playCmd PlayCommand) ([][]byte, error) {
 	// pipeOpusToDiscord(decodedFrames, session, message)
 }
 
-func listSounds() []string {
+func listSounds(listCmd ListCommand) (string, error) {
+	var (
+		err    error
+		sounds []string
+	)
 	if s3Persistence == "true" {
-		return listSoundsS3()
+		sounds, err = listSoundsS3()
+	} else {
+		sounds, err = listSoundsLocal()
 	}
-	return listSoundsLocal()
+
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(sounds, ", "), nil
 }
 
 // Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s
@@ -149,10 +160,10 @@ func putSoundLocal(buf *bytes.Buffer, fileName string) error {
 	return err
 }
 
-func listSoundsLocal() []string {
+func listSoundsLocal() ([]string, error) {
 	files, err := ioutil.ReadDir("./sounds")
 	if err != nil {
-		log.Fatal(err)
+		return nil, errors.New("Can't read local sound directory")
 	}
 
 	sounds := make([]string, 0)
@@ -160,7 +171,7 @@ func listSoundsLocal() []string {
 		sounds = append(sounds, f.Name())
 	}
 
-	return sounds
+	return sounds, nil
 }
 
 func getSoundLocal(filename string) []byte {
