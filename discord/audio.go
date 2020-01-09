@@ -14,31 +14,50 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/rylio/ytdl"
 	"layeh.com/gopus"
 )
-
-// TODO: I think the abstraction here could be modified a bit. I think the discord stuff probably belongs
-// elsewhere and this file should handle audio manipulation.
-// TODO: Optimize argument passing, make sure you are using references whereever possible
-
-const (
-	channels  int = 2                   // 1 for mono, 2 for stereo
-	frameRate int = 48000               // audio sampling rate
-	frameSize int = 960                 // uint16 size of each audio frame
-	maxBytes  int = (frameSize * 2) * 2 // max size of opus data
-)
-
-var s3Persistence string = os.Getenv("S3_PERSISTENCE")
 
 // OpusAudio is the barebones struct used to store an array of opus frames.
 type OpusAudio struct {
 	ByteArray [][]byte
 }
 
+const (
+	channels  int = 2
+	frameRate int = 48000               // audio sampling rate
+	frameSize int = 960                 // uint16 size of each audio frame
+	maxBytes  int = (frameSize * 2) * 2 // max size of opus data
+)
+
+var s3Persistence string = os.Getenv("S3_PERSISTENCE")
+var cache = struct {
+	sync.RWMutex
+	m map[string][][]byte
+}{m: make(map[string][][]byte)}
+
+func checkCache(name string) ([][]byte, bool) {
+	cache.RLock()
+	defer cache.RUnlock()
+	val, ok := cache.m[name]
+	return val, ok
+}
+
+func putCache(name string, data [][]byte) {
+	cache.Lock()
+	defer cache.Unlock()
+	cache.m[name] = data
+}
+
 // TODO: Commands maybe should be moved into their own file and solely audio utility functions live here
 func playSound(playCmd PlayCommand) ([][]byte, error) {
+	val, ok := checkCache(playCmd.name)
+	if ok {
+		return val, nil
+	}
+
 	var opusData []byte
 	if s3Persistence == "true" {
 		opusData = getSoundS3(playCmd.name)
@@ -47,8 +66,8 @@ func playSound(playCmd PlayCommand) ([][]byte, error) {
 	}
 
 	decodedFrames := gobDecodeOpusFrames(opusData)
+	putCache(playCmd.name, decodedFrames)
 	return decodedFrames, nil
-	// pipeOpusToDiscord(decodedFrames, session, message)
 }
 
 func listSounds(listCmd ListCommand) (string, error) {
@@ -69,7 +88,6 @@ func listSounds(listCmd ListCommand) (string, error) {
 	return "Available Sounds: " + strings.Join(sounds, ", "), nil
 }
 
-// Pull info from command - $rip <sound_name> <youtube_url> 0m0s 0m5s
 // TODO: The code duplication here for error handling is unreal.
 // Consider adding functionality to the functions so they return instantly
 // if passed a nil value so we can a single error check at the end.
@@ -102,12 +120,11 @@ func fetchVideoData(url string) (*bytes.Buffer, error) {
 	}
 
 	buf := new(bytes.Buffer)
-	// ToDo: Customize formats?
 	err = vid.Download(vid.Formats[0], buf)
+	// err = vid.Download(vid.Formats.Best(ytdl.FormatResolutionKey)[0], buf)
 	if err != nil {
 		return nil, errors.New("Error downloading video")
 	}
-
 	return buf, nil
 }
 
@@ -139,6 +156,7 @@ func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) 
 		if err == io.EOF {
 			return opusFrames, nil
 		} else if err != nil {
+			fmt.Println(err)
 			return nil, errors.New("Error reading audio")
 		}
 
