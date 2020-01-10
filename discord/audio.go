@@ -40,15 +40,15 @@ var cache = struct {
 
 func checkCache(name string) ([][]byte, bool) {
 	cache.RLock()
-	defer cache.RUnlock()
 	val, ok := cache.m[name]
+	cache.RUnlock()
 	return val, ok
 }
 
 func putCache(name string, data [][]byte) {
 	cache.Lock()
-	defer cache.Unlock()
 	cache.m[name] = data
+	cache.Unlock()
 }
 
 // TODO: Commands maybe should be moved into their own file and solely audio utility functions live here
