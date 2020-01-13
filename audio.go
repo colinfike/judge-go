@@ -1,4 +1,4 @@
-package discord
+package judgego
 
 import (
 	"bufio"
@@ -20,8 +20,8 @@ import (
 	"layeh.com/gopus"
 )
 
-// OpusAudio is the barebones struct used to store an array of opus frames.
-type OpusAudio struct {
+// opusAudio is the barebones struct used to store an array of opus frames.
+type opusAudio struct {
 	ByteArray [][]byte
 }
 
@@ -52,7 +52,7 @@ func putCache(name string, data [][]byte) {
 }
 
 // TODO: Commands maybe should be moved into their own file and solely audio utility functions live here
-func playSound(playCmd PlayCommand) ([][]byte, error) {
+func playSound(playCmd playCommand) ([][]byte, error) {
 	val, ok := checkCache(playCmd.name)
 	if ok {
 		return val, nil
@@ -70,7 +70,7 @@ func playSound(playCmd PlayCommand) ([][]byte, error) {
 	return decodedFrames, nil
 }
 
-func listSounds(listCmd ListCommand) (string, error) {
+func listSounds(listCmd listCommand) (string, error) {
 	var (
 		err    error
 		sounds []string
@@ -91,7 +91,7 @@ func listSounds(listCmd ListCommand) (string, error) {
 // TODO: The code duplication here for error handling is unreal.
 // Consider adding functionality to the functions so they return instantly
 // if passed a nil value so we can a single error check at the end.
-func ripSound(ripCmd RipCommand) error {
+func ripSound(ripCmd ripCommand) error {
 	videoBuf, err := fetchVideoData(ripCmd.url)
 	if err != nil {
 		return err
@@ -210,7 +210,7 @@ func getSoundLocal(filename string) []byte {
 func gobEncodeOpusFrames(opusFrames [][]byte) (*bytes.Buffer, error) {
 	network := bytes.NewBuffer(nil)
 	enc := gob.NewEncoder(network)
-	err := enc.Encode(OpusAudio{ByteArray: opusFrames})
+	err := enc.Encode(opusAudio{ByteArray: opusFrames})
 	if err != nil {
 		return nil, errors.New("Error gobbing frames")
 	}
@@ -220,7 +220,7 @@ func gobEncodeOpusFrames(opusFrames [][]byte) (*bytes.Buffer, error) {
 func gobDecodeOpusFrames(data []byte) [][]byte {
 	var (
 		network    bytes.Buffer
-		opusStruct OpusAudio
+		opusStruct opusAudio
 	)
 	enc := gob.NewDecoder(&network)
 	network.Write(data)

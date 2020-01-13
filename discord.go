@@ -1,4 +1,4 @@
-package discord
+package judgego
 
 import (
 	"errors"
@@ -18,12 +18,12 @@ import (
 // actual error to log and respond to the user with the nice message.
 
 const (
-	// DeleteDelay is the duration of time to wait before deleting a message
-	DeleteDelay = 8 * time.Second
-	// CensorRegex is a regex of all banned words
-	CensorRegex = `\b(wakeley|wakefest)\b`
-	// HallOfFameChanID is the ChannelID of the Hall of Fame Channel
-	HallOfFameChanID = "453637849234014219"
+	// deleteDelay is the duration of time to wait before deleting a message
+	deleteDelay = 8 * time.Second
+	// censorRegex is a regex of all banned words
+	censorRegex = `\b(wakeley|wakefest)\b`
+	// hallOfFameChanID is the ChannelID of the Hall of Fame Channel
+	hallOfFameChanID = "453637849234014219"
 )
 
 // Start is the main initialization function for the bot.
@@ -35,7 +35,7 @@ func Start() {
 	token := os.Getenv("JUDGE_GO_BOT_TOKEN")
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
-		log.Println(err)
+		log.Fatal(err)
 	}
 
 	dg.AddHandler(messageCreate)
@@ -43,7 +43,7 @@ func Start() {
 
 	err = dg.Open()
 	if err != nil {
-		log.Println(err)
+		log.Fatal(err)
 	}
 
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
@@ -68,31 +68,31 @@ func messageReactionAdd(s *discordgo.Session, event *discordgo.MessageReactionAd
 	}
 }
 
-// CommandResult contains the result of whatever resolving a command. It allows
+// commandResult contains the result of whatever resolving a command. It allows
 // us to control the bot sending text or audio and/or deleting user messages.
-type CommandResult struct {
+type commandResult struct {
 	resp          string
 	audio         [][]byte
 	deleteUserMsg bool
 }
 
-func resolveCommand(cmd interface{}) CommandResult {
+func resolveCommand(cmd interface{}) commandResult {
 	var (
-		cmdResult CommandResult
+		cmdResult commandResult
 		err       error
 	)
 	// ToDo: Make this default either via constructor or some Go funcctionality
 	cmdResult.deleteUserMsg = true
 	switch cmd.(type) {
-	case RipCommand:
-		err = ripSound(cmd.(RipCommand))
+	case ripCommand:
+		err = ripSound(cmd.(ripCommand))
 		cmdResult.resp = "Sound successfully created!"
-	case PlayCommand:
-		cmdResult.audio, err = playSound(cmd.(PlayCommand))
-	case ListCommand:
-		cmdResult.resp, err = listSounds(cmd.(ListCommand))
-	case MessageCommand:
-		if containsBannedContent(cmd.(MessageCommand)) {
+	case playCommand:
+		cmdResult.audio, err = playSound(cmd.(playCommand))
+	case listCommand:
+		cmdResult.resp, err = listSounds(cmd.(listCommand))
+	case messageCommand:
+		if containsBannedContent(cmd.(messageCommand)) {
 			cmdResult.resp = "That's banned content."
 		}
 		cmdResult.deleteUserMsg = false
@@ -110,7 +110,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
-	cmd, err := ParseMsg(m.Content)
+	cmd, err := parseMsg(m.Content)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, err.Error())
 		return
@@ -133,8 +133,8 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 }
 
-func containsBannedContent(messageCmd MessageCommand) bool {
-	re := regexp.MustCompile(CensorRegex)
+func containsBannedContent(messageCmd messageCommand) bool {
+	re := regexp.MustCompile(censorRegex)
 	if re.FindIndex([]byte(messageCmd.content)) != nil {
 		return true
 	}
@@ -146,7 +146,7 @@ func deleteMessage(s *discordgo.Session, m *discordgo.Message) {
 
 }
 func delayedDeleteMessage(s *discordgo.Session, messages ...*discordgo.Message) {
-	time.Sleep(DeleteDelay)
+	time.Sleep(deleteDelay)
 	for _, message := range messages {
 		s.ChannelMessageDelete(message.ChannelID, message.ID)
 	}
@@ -200,7 +200,7 @@ func addToHallOfFame(s *discordgo.Session, m *discordgo.Message) error {
 	}
 
 	msgTxt := fmt.Sprintf("**Posted on %v by %v.**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, m.Content)
-	_, err = s.ChannelMessageSend(HallOfFameChanID, msgTxt)
+	_, err = s.ChannelMessageSend(hallOfFameChanID, msgTxt)
 	if err != nil {
 		log.Println("Failed to create HoF message: ", err.Error())
 		return err

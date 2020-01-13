@@ -16,4 +16,6 @@
 
 sounds/
 
-judge-go-bot
+judgego
+
+.env

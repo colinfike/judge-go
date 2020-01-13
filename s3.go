@@ -1,4 +1,4 @@
-package discord
+package judgego
 
 import (
 	"bytes"
@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	// BucketName is the main bucket that judge-go uses.
-	BucketName string = "judge-go"
-	// SoundClipRegex is the regex used to pull sound clip names from the bucet
-	SoundClipRegex = "sound-clips/(.+)"
+	// bucketName is the main bucket that judge-go uses.
+	bucketName string = "judge-go"
+	// soundClipRegex is the regex used to pull sound clip names from the bucket
+	soundClipRegex = localAudioDir + "(.+)"
+	localAudioDir  = "sound-clips/"
 )
 
 func listSoundsS3() ([]string, error) {
@@ -27,13 +28,13 @@ func listSoundsS3() ([]string, error) {
 	}
 	svc := s3.New(sess)
 
-	resp, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: aws.String(BucketName)})
+	resp, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{Bucket: aws.String(bucketName)})
 	if err != nil {
 		return nil, errors.New("Unable to access sound bucket")
 	}
 
 	sounds := make([]string, 0)
-	re := regexp.MustCompile(SoundClipRegex)
+	re := regexp.MustCompile(soundClipRegex)
 	for _, item := range resp.Contents {
 		matches := re.FindSubmatch([]byte(*item.Key))
 		if matches != nil {
@@ -53,8 +54,8 @@ func putSoundS3(sound *bytes.Buffer, name string) error {
 
 	uploader := s3manager.NewUploader(sess)
 	_, err = uploader.Upload(&s3manager.UploadInput{
-		Bucket: aws.String(BucketName),
-		Key:    aws.String("sound-clips/" + name),
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(localAudioDir + name),
 		Body:   sound,
 	})
 	if err != nil {
@@ -73,8 +74,8 @@ func getSoundS3(name string) []byte {
 	buf := aws.NewWriteAtBuffer([]byte{})
 	_, _ = downloader.Download(buf,
 		&s3.GetObjectInput{
-			Bucket: aws.String(BucketName),
-			Key:    aws.String("sound-clips/" + name),
+			Bucket: aws.String(bucketName),
+			Key:    aws.String(localAudioDir + name),
 		})
 	return buf.Bytes()
 }

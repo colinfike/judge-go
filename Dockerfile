@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY . .
 
-RUN GOOS=linux go build -a
+RUN GOOS=linux go build -o judgego cmd/judgego/main.go
 
 # Define image for deploy
 FROM alpine:latest  
@@ -18,6 +18,6 @@ RUN wget https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-amd64-static.tar.xz 
 
 WORKDIR /app
 
-COPY --from=builder /app/judge-go-bot .
+COPY --from=builder /app/judgego .
 
-CMD ["./judge-go-bot"]
+CMD ["./judgego"]

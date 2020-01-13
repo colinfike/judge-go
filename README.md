@@ -4,6 +4,6 @@ Judge Go is a discord bot to add a little "fun" to your discord servers. Main fu
 
 ToDo:
 
-1) Discord package probably should be split up so I don't just have one giant namespace with everything globally available.
-2) Error handling needs to be revisited
-3) Setup CI
+1) Overhaul errors. Misusing them slightly at the moment.
+2) Potentially move some of the command specific logic into a command specific file.
+3) More tests.

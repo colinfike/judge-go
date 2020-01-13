@@ -1,4 +1,4 @@
-package discord
+package judgego
 
 import (
 	"errors"
@@ -8,24 +8,24 @@ import (
 	"strings"
 )
 
-// RipCommand contains all pertinent info to resole the $rip command
-type RipCommand struct {
+// ripCommand contains all pertinent info to resole the $rip command
+type ripCommand struct {
 	name     string
 	url      string
 	start    string
 	duration string
 }
 
-// PlayCommand contains all pertinent info to resole the $play command
-type PlayCommand struct {
+// playCommand contains all pertinent info to resole the $play command
+type playCommand struct {
 	name string
 }
 
-// ListCommand contains all pertinent info to resolve the $list command (Yes nothing for now)
-type ListCommand struct{}
+// listCommand contains all pertinent info to resolve the $list command (Yes nothing for now)
+type listCommand struct{}
 
-// MessageCommand contains all pertinent info to resolve a normal message (bit of a cheat)
-type MessageCommand struct {
+// messageCommand contains all pertinent info to resolve a normal message (bit of a cheat)
+type messageCommand struct {
 	content string
 }
 
@@ -38,8 +38,8 @@ const (
 	listPrefix        string = "$list"
 )
 
-// ParseMsg parses the message string and returns a struct based on the type of message it is.
-func ParseMsg(msg string) (interface{}, error) {
+// parseMsg parses the message string and returns a struct based on the type of message it is.
+func parseMsg(msg string) (interface{}, error) {
 	var (
 		command interface{}
 		err     error
@@ -57,8 +57,8 @@ func ParseMsg(msg string) (interface{}, error) {
 	return command, err
 }
 
-func parseRipCmd(msg string) (RipCommand, error) {
-	cmd := RipCommand{}
+func parseRipCmd(msg string) (ripCommand, error) {
+	cmd := ripCommand{}
 
 	tokens := strings.Split(msg, " ")
 	if len(tokens) < 5 {
@@ -79,8 +79,8 @@ func parseRipCmd(msg string) (RipCommand, error) {
 	return cmd, nil
 }
 
-func parsePlayCmd(msg string) (PlayCommand, error) {
-	cmd := PlayCommand{}
+func parsePlayCmd(msg string) (playCommand, error) {
+	cmd := playCommand{}
 
 	tokens := strings.Split(msg, " ")
 	if len(tokens) < 2 {
@@ -91,12 +91,12 @@ func parsePlayCmd(msg string) (PlayCommand, error) {
 	return cmd, nil
 }
 
-func parseListCmd(msg string) (ListCommand, error) {
-	return ListCommand{}, nil
+func parseListCmd(msg string) (listCommand, error) {
+	return listCommand{}, nil
 }
 
-func parseMessageCmd(msg string) (MessageCommand, error) {
-	return MessageCommand{msg}, nil
+func parseMessageCmd(msg string) (messageCommand, error) {
+	return messageCommand{msg}, nil
 }
 
 func isValidURL(testURL string) bool {
