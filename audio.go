@@ -128,7 +128,7 @@ func fetchVideoData(url string) (*bytes.Buffer, error) {
 	return buf, nil
 }
 
-// TODO: Bit heavy here. Probably can clean up a bit but probably fine.
+// TODO: Bit heavy here. Could probably pull out a function or two for ease of testing purposes.
 func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) ([][]byte, error) {
 	run := exec.Command("ffmpeg", "-i", "pipe:0", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "-ss", start, "-t", duration, "pipe:1")
 	ffmpegOut, _ := run.StdoutPipe()

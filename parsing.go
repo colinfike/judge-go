@@ -99,6 +99,7 @@ func parseMessageCmd(msg string) (messageCommand, error) {
 	return messageCommand{msg}, nil
 }
 
+// ToDO: I think this actually pretty weak checking
 func isValidURL(testURL string) bool {
 	_, err := url.ParseRequestURI(testURL)
 	if err != nil {
