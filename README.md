@@ -25,7 +25,7 @@ You'll need to take care of getting your bot invited to your discord guild but b
 1) Ability to list, create, and play audio files.
 2) Local/S3 Persistence functionality
 
-## Psuedo-Available Features
+## Pseudo-Available Features
 
 These are features that are hardcoded at the moment to my personal server but are functional none-the-less.
 
