@@ -128,7 +128,7 @@ func fetchVideoData(url string) (*bytes.Buffer, error) {
 	return buf, nil
 }
 
-// TODO: Opportunity to tune this function a bit more I think.
+// TODO: Bit heavy here. Probably can clean up a bit but probably fine.
 func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) ([][]byte, error) {
 	run := exec.Command("ffmpeg", "-i", "pipe:0", "-f", "s16le", "-ar", strconv.Itoa(frameRate), "-ac", strconv.Itoa(channels), "-ss", start, "-t", duration, "pipe:1")
 	ffmpegOut, _ := run.StdoutPipe()
@@ -149,15 +149,23 @@ func convertToOpusFrames(videoBuf *bytes.Buffer, start string, duration string) 
 	opusEncoder, _ := gopus.NewEncoder(frameRate, channels, gopus.Audio)
 	opusFrames := make([][]byte, 0)
 	for {
-		// CDF: This represents a single frame. 20ms * 48 samples/ms * 2 channels
-		frameBuf := make([]int16, frameSize*channels)
-
-		err := binary.Read(ffmpegbuf, binary.LittleEndian, &frameBuf)
-		if err == io.EOF {
+		// CDF: This represents the bytes of a single frame. 20ms * 48 samples/ms * 2 channels * 2 bytes per sample
+		frameBytes := make([]byte, frameSize*channels*2)
+		_, err := io.ReadFull(ffmpegbuf, frameBytes)
+		// If EOF or UnexpectedEOF is received, return all opusFrames because either all of the audio data was converted
+		// into opusFrames or we have some audio data (<20ms) that won't fit into a valid opus frame so throw it away for now
+		if err != nil {
 			return opusFrames, nil
-		} else if err != nil {
-			fmt.Println(err)
-			return nil, errors.New("Error reading audio")
+		}
+
+		bytesReader := bytes.NewReader(frameBytes)
+		frameBuf := make([]int16, frameSize*channels)
+		err = binary.Read(bytesReader, binary.LittleEndian, &frameBuf)
+		if err != nil {
+			// This branch should almost never be ran. The only time it could be is if the video data
+			// fit perfectly into 20ms opus frames with no remaining data.
+			fmt.Println("binary.Read EOF reached")
+			return opusFrames, nil
 		}
 
 		opusFrame, err := opusEncoder.Encode(frameBuf, frameSize, maxBytes)

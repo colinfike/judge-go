@@ -32,7 +32,7 @@ func Start() {
 		initSoundDir()
 	}
 
-	token := os.Getenv("JUDGE_GO_BOT_TOKEN")
+	token := os.Getenv("DISCORD_BOT_TOKEN")
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
 		log.Fatal(err)

@@ -3,6 +3,7 @@ package judgego
 import (
 	"bytes"
 	"errors"
+	"os"
 	"regexp"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -12,12 +13,12 @@ import (
 )
 
 const (
-	// bucketName is the main bucket that judge-go uses.
-	bucketName string = "judge-go"
 	// soundClipRegex is the regex used to pull sound clip names from the bucket
-	soundClipRegex = localAudioDir + "(.+)"
-	localAudioDir  = "sound-clips/"
+	soundClipRegex = audioFilePrefix + "(.+)"
+	audioFilePrefix  = "sound-clips/"
 )
+
+var bucketName string = os.Getenv("BUCKET_NAME")
 
 func listSoundsS3() ([]string, error) {
 	sess, err := session.NewSession(&aws.Config{
@@ -55,7 +56,7 @@ func putSoundS3(sound *bytes.Buffer, name string) error {
 	uploader := s3manager.NewUploader(sess)
 	_, err = uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(bucketName),
-		Key:    aws.String(localAudioDir + name),
+		Key:    aws.String(audioFilePrefix + name),
 		Body:   sound,
 	})
 	if err != nil {
@@ -75,7 +76,7 @@ func getSoundS3(name string) []byte {
 	_, _ = downloader.Download(buf,
 		&s3.GetObjectInput{
 			Bucket: aws.String(bucketName),
-			Key:    aws.String(localAudioDir + name),
+			Key:    aws.String(audioFilePrefix + name),
 		})
 	return buf.Bytes()
 }
