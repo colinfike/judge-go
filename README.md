@@ -36,7 +36,7 @@ These are features that are hardcoded at the moment to my personal server but ar
 
 1) Allow customization of the video file received from Youtube. In some cases the video was a format that didn't seem to work. Haven't been able to reliably replicate.
 2) Overhaul errors. I currently use them to ferry messages (user friendly or otherwise) to the user. Should probably extend error to allow a user friendly message to be added alongside the actual error or revisit how to control what message gets sent to the user.
-3) Stop exploiting globals as much, temper with some DI.
+3) Stop exploiting globals as much, temper with some DI. Though having everything as a defacto global wasn't horrible for a project of this size.
 4) Potentially move some of the command specific logic into a command specific file.
 5) Some integration/E2E tests would be nice. A lot of functionality with IO needs to be tested. More test coverage in general.
 6) A bunch of other tweaks, additions, changes that are too numerous to list here.
