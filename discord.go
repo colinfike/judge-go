@@ -22,8 +22,13 @@ const (
 	deleteDelay = 8 * time.Second
 	// censorRegex is a regex of all banned words
 	censorRegex = `\b(wakeley|wakefest)\b`
-	// hallOfFameChanID is the ChannelID of the Hall of Fame Channel
-	hallOfFameChanID = "453637849234014219"
+	// inductionMinCount is the minimum amount of reactions a post must get to be inducted
+	inductionMinCount = 3
+)
+
+var (
+	hallOfFameChanID  = os.Getenv("HALL_OF_FAME_ID")
+	hallOfShameChanID = os.Getenv("HALL_OF_SHAME_ID")
 )
 
 // Start is the main initialization function for the bot.
@@ -55,14 +60,25 @@ func Start() {
 }
 
 func messageReactionAdd(s *discordgo.Session, event *discordgo.MessageReactionAdd) {
+	if alreadyInducted(event.ChannelID, event.MessageID) {
+		return
+	}
+
 	message, err := s.ChannelMessage(event.ChannelID, event.MessageID)
 	if err != nil {
 		log.Printf("Message does not exist: %v", err)
 	}
+	// TODO: Can probably dry up with a map of emojis and functions to call if they meet the induction criteria
 	for _, reaction := range message.Reactions {
 		if reaction.Emoji.Name == "👌" {
-			if reaction.Count > 2 {
+			if reaction.Count >= inductionMinCount {
 				addToHallOfFame(s, message)
+				inductMessage(message.ChannelID, message.ID)
+			}
+		} else if reaction.Emoji.Name == "💩" {
+			if reaction.Count >= inductionMinCount {
+				addToHallOfShame(s, message)
+				inductMessage(message.ChannelID, message.ID)
 			}
 		}
 	}
@@ -201,6 +217,23 @@ func addToHallOfFame(s *discordgo.Session, m *discordgo.Message) error {
 
 	msgTxt := fmt.Sprintf("**Posted on %v by %v.**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, m.Content)
 	_, err = s.ChannelMessageSend(hallOfFameChanID, msgTxt)
+	if err != nil {
+		log.Println("Failed to create HoF message: ", err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func addToHallOfShame(s *discordgo.Session, m *discordgo.Message) error {
+	ts, err := m.Timestamp.Parse()
+	if err != nil {
+		log.Println("Discord messed up here: ", err.Error())
+		return err
+	}
+
+	msgTxt := fmt.Sprintf("**Posted in infamy on %v by %v.**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, m.Content)
+	_, err = s.ChannelMessageSend(hallOfShameChanID, msgTxt)
 	if err != nil {
 		log.Println("Failed to create HoF message: ", err.Error())
 		return err
