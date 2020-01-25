@@ -20,6 +20,8 @@ const (
 
 var bucketName string = os.Getenv("BUCKET_NAME")
 
+// TODO: This entire file can be genericized a bit, there is a mix of app specific code and generic functionality.
+
 func listSoundsS3() ([]string, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-1")},

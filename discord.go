@@ -7,11 +7,14 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
+
+// TODO: Create actual structs so we can use reciever functions. No reason to be passing session around as much I am.
 
 // TODO: General error handling can be updated. I don't want to obfuscate the actual error for a user
 // friendly message which is the current pattern. Can probably just extend Error and then print the
@@ -29,6 +32,7 @@ const (
 var (
 	hallOfFameChanID  = os.Getenv("HALL_OF_FAME_ID")
 	hallOfShameChanID = os.Getenv("HALL_OF_SHAME_ID")
+	guildID           = os.Getenv("GUILD_ID")
 )
 
 // Start is the main initialization function for the bot.
@@ -126,6 +130,19 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
 	}
+
+	// TODO: Integrate into a command instead of hack.
+	if strings.HasPrefix(m.Content, "mimic ") {
+		member, err := getUserBySubstring(s, strings.TrimPrefix(m.Content, "mimic "))
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, "Member not found")
+			return
+		}
+		deleteMessage(s, m.Message)
+		s.ChannelMessageSend(m.ChannelID, member.Nick+": "+generateSentence(s, member.User.ID, m.ChannelID))
+		return
+	}
+
 	cmd, err := parseMsg(m.Content)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, err.Error())
@@ -251,4 +268,17 @@ func initSoundDir() error {
 		return err
 	}
 	return nil
+}
+
+func getUserBySubstring(s *discordgo.Session, name string) (*discordgo.Member, error) {
+	members, err := s.GuildMembers(guildID, "", 1000)
+	if err != nil {
+		return nil, err
+	}
+	for _, member := range members {
+		if strings.Contains(strings.ToLower(member.Nick), strings.ToLower(name)) {
+			return member, nil
+		}
+	}
+	return nil, errors.New("User not found")
 }

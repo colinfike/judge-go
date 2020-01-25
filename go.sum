@@ -3,6 +3,14 @@ github.com/aws/aws-sdk-go v1.28.1 h1:aWBD5EJrmGFuHFn9ZdaHqWWZGZYQ5Gzb3j9G0RppLpY
 github.com/aws/aws-sdk-go v1.28.1/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/bwmarrin/discordgo v0.20.2 h1:nA7jiTtqUA9lT93WL2jPjUp8ZTEInRujBdx1C9gkr20=
 github.com/bwmarrin/discordgo v0.20.2/go.mod h1:O9S4p+ofTFwB02em7jkpkV8M3R0/PUVOwN61zSZ0r4Q=
+github.com/colinfike/mimic v0.0.0-20200123234019-7afbbc42eec0 h1:37Yb0bFNKDw3t4eOB5QQZEc14hbyNL73eNPk8GXc4sw=
+github.com/colinfike/mimic v0.0.0-20200123234019-7afbbc42eec0/go.mod h1:XrGa1KLFml3h0N7URJm3BnZeNbyNMXxptnd5xoxNbn4=
+github.com/colinfike/mimic v0.0.0-20200124060314-ba7f69c081f5 h1:xbcoMBovKfaQRSzE+fiNOdz7sGQGw4iKrUia2dqNCnU=
+github.com/colinfike/mimic v0.0.0-20200124060314-ba7f69c081f5/go.mod h1:XrGa1KLFml3h0N7URJm3BnZeNbyNMXxptnd5xoxNbn4=
+github.com/colinfike/mimic v0.0.0-20200125004419-7241725c0695 h1:0uFmsArE6E5lxQI1FyiDnkOUKmdsntr9vhoeodidioI=
+github.com/colinfike/mimic v0.0.0-20200125004419-7241725c0695/go.mod h1:XrGa1KLFml3h0N7URJm3BnZeNbyNMXxptnd5xoxNbn4=
+github.com/colinfike/mimic v1.0.1 h1:/gGtb5JxTicXgoXtYbrjVAS1zG53vSFexLqRDVDFRWA=
+github.com/colinfike/mimic v1.0.1/go.mod h1:XrGa1KLFml3h0N7URJm3BnZeNbyNMXxptnd5xoxNbn4=
 github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
@@ -38,6 +46,7 @@ golang.org/x/net v0.0.0-20190620200207-3b0461eec859/go.mod h1:z5CRVTTTmAJ677TzLL
 golang.org/x/sync v0.0.0-20190423024810-112230192c58/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20191008105621-543471e840be/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20191104094858-e8c54fb511f6 h1:ZJUmhYTp8GbGC0ViZRc2U+MIYQ8xx9MscsdXnclfIhw=
 golang.org/x/sys v0.0.0-20191104094858-e8c54fb511f6/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0 h1:g61tztE5qeGQ89tm6NTjjM9VPIm088od1l6aSorWRWg=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
