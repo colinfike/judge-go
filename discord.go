@@ -27,6 +27,8 @@ const (
 	censorRegex = `\b(wakeley|wakefest)\b`
 	// inductionMinCount is the minimum amount of reactions a post must get to be inducted
 	inductionMinCount = 3
+	// reactorCount is the number of users to pull who reacted on a message
+	reactorCount = 10
 )
 
 var (
@@ -76,16 +78,36 @@ func messageReactionAdd(s *discordgo.Session, event *discordgo.MessageReactionAd
 	for _, reaction := range message.Reactions {
 		if reaction.Emoji.Name == "👌" {
 			if reaction.Count >= inductionMinCount {
-				addToHallOfFame(s, message)
+				reactors, err := getReactors(s, message, "👌")
+				if err != nil {
+					fmt.Println(err)
+				}
+				addToHallOfFame(s, message, reactors)
 				inductMessage(message.ChannelID, message.ID)
 			}
 		} else if reaction.Emoji.Name == "💩" {
 			if reaction.Count >= inductionMinCount {
-				addToHallOfShame(s, message)
+				reactors, err := getReactors(s, message, "💩")
+				if err != nil {
+					fmt.Println(err)
+				}
+				addToHallOfShame(s, message, reactors)
 				inductMessage(message.ChannelID, message.ID)
 			}
 		}
 	}
+}
+
+func getReactors(s *discordgo.Session, message *discordgo.Message, emoji string) ([]string, error) {
+	reactors := make([]string, 0)
+	users, err := s.MessageReactions(message.ChannelID, message.ID, emoji, reactorCount)
+	if err != nil {
+		return nil, err
+	}
+	for _, user := range users {
+		reactors = append(reactors, user.Username)
+	}
+	return reactors, nil
 }
 
 // commandResult contains the result of whatever resolving a command. It allows
@@ -225,14 +247,14 @@ func findUserVoiceState(session *discordgo.Session, userid string) (*discordgo.V
 	return nil, errors.New("Could not find user's voice state")
 }
 
-func addToHallOfFame(s *discordgo.Session, m *discordgo.Message) error {
+func addToHallOfFame(s *discordgo.Session, m *discordgo.Message, reactors []string) error {
 	ts, err := m.Timestamp.Parse()
 	if err != nil {
 		log.Println("Discord messed up here: ", err.Error())
 		return err
 	}
 
-	msgTxt := fmt.Sprintf("**Posted on %v by %v.**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, m.Content)
+	msgTxt := fmt.Sprintf("**Posted on %v by %v.**\n**Voted in by %v**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, strings.Join(reactors, ", "), m.Content)
 	_, err = s.ChannelMessageSend(hallOfFameChanID, msgTxt)
 	if err != nil {
 		log.Println("Failed to create HoF message: ", err.Error())
@@ -242,14 +264,14 @@ func addToHallOfFame(s *discordgo.Session, m *discordgo.Message) error {
 	return nil
 }
 
-func addToHallOfShame(s *discordgo.Session, m *discordgo.Message) error {
+func addToHallOfShame(s *discordgo.Session, m *discordgo.Message, reactors []string) error {
 	ts, err := m.Timestamp.Parse()
 	if err != nil {
 		log.Println("Discord messed up here: ", err.Error())
 		return err
 	}
 
-	msgTxt := fmt.Sprintf("**Posted in infamy on %v by %v.**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, m.Content)
+	msgTxt := fmt.Sprintf("**Posted in infamy on %v by %v.**\n**Voted in by %v**\n\n%v", ts.Format("January 2, 2006"), m.Author.Username, strings.Join(reactors, ", "), m.Content)
 	_, err = s.ChannelMessageSend(hallOfShameChanID, msgTxt)
 	if err != nil {
 		log.Println("Failed to create HoF message: ", err.Error())
