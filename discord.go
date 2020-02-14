@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -35,6 +37,7 @@ var (
 	hallOfFameChanID  = os.Getenv("HALL_OF_FAME_ID")
 	hallOfShameChanID = os.Getenv("HALL_OF_SHAME_ID")
 	guildID           = os.Getenv("GUILD_ID")
+	coolorRoles       = strings.Split(os.Getenv("ROLES"), ",")
 )
 
 // Start is the main initialization function for the bot.
@@ -165,6 +168,29 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
+	// TODO: Integrate into a command instead of this even hackier code.
+	if strings.HasPrefix(m.Content, "coolors https://coolors.co/") {
+		re := regexp.MustCompile(`https://coolors.co/(.*)`)
+		matches := re.FindSubmatch([]byte(m.Content))
+		hexCodes := strings.Split(string(matches[1]), "-")
+
+		guildRoles := make(map[string]*discordgo.Role)
+		roles, _ := s.GuildRoles(guildID)
+		for _, role := range roles {
+			guildRoles[role.ID] = role
+		}
+
+		for index, hexCode := range hexCodes {
+			role := guildRoles[coolorRoles[index]]
+			decimalRGB, _ := strconv.ParseUint(hexCode, 16, 24)
+			_, err := s.GuildRoleEdit(guildID, role.ID, role.Name, int(decimalRGB), role.Hoist, role.Permissions, role.Mentionable)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+		s.ChannelMessageDelete(m.ChannelID, m.ID)
+	}
+
 	cmd, err := parseMsg(m.Content)
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, err.Error())
@@ -230,9 +256,14 @@ func pipeOpusToDiscord(opusFrames [][]byte, s *discordgo.Session, m *discordgo.M
 		}
 	}()
 
-	for _, byteArray := range opusFrames {
-		dgv.OpusSend <- byteArray
+	rand.Seed(time.Now().UnixNano())
+
+	for i := 0; i < len(opusFrames); i++ {
+		dgv.OpusSend <- opusFrames[rand.Intn(len(opusFrames))]
 	}
+	// for _, byteArray := range opusFrames {
+	// 	dgv.OpusSend <- byteArray
+	// }
 	return nil
 }
 
